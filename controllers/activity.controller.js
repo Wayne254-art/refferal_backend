@@ -7,7 +7,6 @@ const sendMail = require("../utils/sendMail");
 const query = promisify(db.query).bind(db);
 
 const adminId = process.env.ADMIN_REFFERAL_ID;
-const andminEmailId = process.env.ADMIN_EMAIL_ID;
 
 // Get total account balance
 exports.getTotalAccountBalance = asyncHandler(async (req, res) => {
@@ -62,8 +61,6 @@ exports.getTotalDeposits = asyncHandler(async (req, res) => {
     const totalDeposits = results[0].totalDeposits;
 
     logger.info(`User userId: ${userId} total deposits retrieved successfully`);
-
-    console.log(totalDeposits);
 
     // Return total deposits amount if found
     res.status(200).json({
@@ -270,7 +267,7 @@ exports.addDeposit = asyncHandler(async (req, res) => {
 // Add a new withdrawal record
 exports.addWithdrawal = asyncHandler(async (req, res) => {
   const { userId } = req.params;
-  const { activityAmount, phoneNumber, email, username } = req.body;
+  const { activityAmount, phoneNumber } = req.body;
   const withdrawalDate = new Date(Date.now());
 
   if (!activityAmount) {
@@ -287,22 +284,8 @@ exports.addWithdrawal = asyncHandler(async (req, res) => {
   const activityData = JSON.stringify({
     withdrawalDate,
     phoneNumber,
-    email,
-    username,
   });
 
-  // Get actaul balance
-  const actauBalanceQuery = `SELECT totalBalance FROM users WHERE userId = ?`;
-  const actualBalance = await query(actauBalanceQuery, [userId]);
-  const actualBalanceAmount = actualBalance[0].totalBalance;
-
-  // console.log("actual Balance Before withdrawal request", actualBalanceAmount);
-  if (actualBalanceAmount < activityAmount) {
-    return res.status(400).json({
-      success: false,
-      message: "Insuficient funds",
-    });
-  }
   try {
     // Start a transaction
     await query("START TRANSACTION");
@@ -383,9 +366,9 @@ exports.addWithdrawal = asyncHandler(async (req, res) => {
 
       await sendMail({
         from: process.env.SMTP_MAIL,
-        to: andminEmailId,
+        to: userEmail,
         subject: "User Withdrawal Request",
-        text: `A withdrawal request has been made by userId: ${userId} and phoneNumber ${phoneNumber} for amount ${activityAmount}.`,
+        text: `A withdrawal request has been made by userId: ${userId} for amount ${activityAmount}.`,
       });
     } catch (error) {
       logger.error(`Error sending email: ${error.message}`);
@@ -417,7 +400,7 @@ exports.getAllWithdrawals = asyncHandler(async (req, res) => {
   try {
     // Query to get all withdrawals
     const getWithdrawalsQuery = `
-      SELECT *
+      SELECT activityId, userId, activityAmount, activityData, createdAt, activityStatus
       FROM activity
       WHERE activityType = 'withdrawal'
       ORDER BY createdAt DESC
@@ -500,77 +483,6 @@ exports.changeWithdrawalStatus = asyncHandler(async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-    });
-  }
-});
-
-// Get all withdrawals of user
-exports.getUserWithdrawals = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
-
-  try {
-    // Fetch withdrawals for the user from the activity table
-    const withdrawalsQuery = `
-      SELECT *
-      FROM activity
-      WHERE userId = ? AND activityType = 'withdrawal'
-      ORDER BY createdAt DESC
-    `;
-    const withdrawals = await query(withdrawalsQuery, [userId]);
-
-    if (!withdrawals || withdrawals.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No withdrawals found for this user.",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Withdrawals fetched successfully.",
-      withdrawals,
-    });
-  } catch (error) {
-    console.error(`Error getting user withdrawals: ${error.message}`);
-    return res.status(500).json({
-      success: false,
-      message: "An error occurred while fetching the withdrawals.",
-    });
-  }
-});
-
-// Get total deposits --- Admin
-exports.getAllTotalDeposits = asyncHandler(async (req, res) => {
-  try {
-    const { userId } = req.user;
-    const selectQuery = `SELECT * FROM activity  WHERE activityType = 'deposit'`;
-
-    // Execute the query to get the total deposits amount
-    const results = await query(selectQuery, [userId]);
-
-    if (results.length === 0 ) {
-      return res.status(404).json({
-        success: false,
-        message: "No record found",
-      });
-    }
-
-    const totalAdminDeposits = results;
-
-    logger.info(`User userId: ${userId} total deposits retrieved successfully`);
-
-    // console.log(totalAdminDeposits);
-
-    // Return total deposits amount if found
-    res.status(200).json({
-      success: true,
-      totalAdminDeposits,
-    });
-  } catch (error) {
-    logger.error(`Error fetching total deposits: ${error.message}`);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
     });
   }
 });

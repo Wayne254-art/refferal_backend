@@ -9,7 +9,6 @@ const authRoutes = require("./Routes/auth.routes");
 const usersRoutes = require("./Routes/users.routes");
 const activityRoutes = require("./Routes/activity.routes");
 const referralRoutes = require("./Routes/referral.routes");
-const paymentsRoutes = require("./Routes/payments.routes");
 const { corsOptions } = require("./utils/corsOptions");
 
 // Serve static files from the 'uploads' directory
@@ -26,7 +25,6 @@ app.use("/api/v2/auth", authRoutes);
 app.use("/api/v2/user", usersRoutes);
 app.use("/api/v2/activity", activityRoutes);
 app.use("/api/v2/referral", referralRoutes);
-app.use("/api/v2/payments", paymentsRoutes);
 
 app.get(`/`, (req, res) => {
   res.send(`Hello From the Backend Server`);

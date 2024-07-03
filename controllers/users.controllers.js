@@ -40,49 +40,10 @@ exports.getUser = asyncHandler(async (req, res) => {
   }
 });
 
-// Get user details function --Admin
-exports.getUserDetails = asyncHandler(async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const selectQuery = `SELECT userId, firstName, lastName, username, email, phoneNumber, role, referralCode, avatar, isActive, totalBalance FROM users WHERE userId = ?`;
-
-    // Execute the query to get user details
-    const userDetails = await query(selectQuery, [userId]);
-
-    if (userDetails.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    // Return user details if found
-    res.status(200).json({
-      success: true,
-      userDetails: userDetails[0],
-    });
-  } catch (error) {
-    logger.error(`Error fetching user details: ${error.message}`);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-});
-
 // Update user account
 exports.updateAccount = asyncHandler(async (req, res) => {
   try {
     const userId = req.params.userId;
-    const user = req.user;
-
-    if (!user || !user.role) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized access",
-      });
-    }
-
     const {
       firstName,
       lastName,
@@ -93,46 +54,47 @@ exports.updateAccount = asyncHandler(async (req, res) => {
       password,
     } = req.body;
 
-    // Validate input data for non-admin users
-    if (user.role !== "Admin") {
-      if (
-        !firstName ||
-        !lastName ||
-        !email ||
-        !phoneNumber ||
-        !username ||
-        !password
-      ) {
-        return res.status(400).json({
-          success: false,
-          message: "All fields are required",
-        });
-      }
+    // console.log("Received password:", password);
+    // Validate input data
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      !phoneNumber ||
+      !username ||
+      !password
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
 
-      // Fetch the existing user details
-      const userResult = await query(
-        `SELECT password FROM users WHERE userId = ?`,
-        [userId]
-      );
+    // Fetch the existing user details
+    const userResult = await query(
+      `SELECT password FROM users WHERE userId = ?`,
+      [userId]
+    );
 
-      // Check if user exists
-      if (userResult.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found",
-        });
-      }
+    // console.log("User result:", userResult);
 
-      const storedPassword = userResult[0].password;
+    // Check if user exists
+    if (userResult.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
 
-      // Check if the provided password matches the stored password
-      const isMatch = await bcrypt.compare(password, storedPassword);
-      if (!isMatch) {
-        return res.status(400).json({
-          success: false,
-          message: "Incorrect password",
-        });
-      }
+    const storedPassword = userResult[0].password;
+
+    // Check if the provided password matches the stored password
+    const isMatch = await bcrypt.compare(password, storedPassword);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: "Incorrect password",
+      });
     }
 
     // Construct the update query
@@ -168,60 +130,6 @@ exports.updateAccount = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating user account:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-});
-
-// Update Account Role
-exports.updateAccountRole = asyncHandler(async (req, res) => {
-  try {
-    const { userId, role } = req.body;
-    const user = req.user;
-
-    // Check if the logged-in user has the 'Admin' role
-    if (user.role !== "Admin") {
-      return res.status(403).json({
-        success: false,
-        message: "You do not have permission to update user roles",
-      });
-    }
-
-    // Validate the new role
-    const validRoles = ["user", "Admin"];
-    if (!validRoles.includes(role)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid role specified",
-      });
-    }
-
-    // Update the user's role in the database
-    const updateQuery = `
-      UPDATE users
-      SET role = ?
-      WHERE userId = ?
-    `;
-    const result = await query(updateQuery, [role, userId]);
-
-    // Check if the user was updated
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found or no changes made",
-      });
-    }
-
-    // Send success response
-    res.status(200).json({
-      success: true,
-      message: `User role updated to ${role} successfully`,
-      updatedRole: true,
-    });
-  } catch (error) {
-    console.error("Error updating user account role:", error.message);
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -405,7 +313,7 @@ exports.updateAvatar = asyncHandler(async (req, res) => {
 // Get all users
 exports.getAllUsers = asyncHandler(async (req, res) => {
   try {
-    const selectQuery = `SELECT userId, firstName, lastName, username, email, phoneNumber, role, referralCode, avatar, isActive, totalBalance FROM users ORDER BY createdAt DESC`;
+    const selectQuery = `SELECT userId, firstName, lastName, username, email, phoneNumber, role, referralCode, avatar, status, totalBalance FROM users`;
 
     // Execute the query to get all user details
     const userResult = await db.query(selectQuery);
@@ -470,14 +378,14 @@ exports.getSingleUsers = asyncHandler(async (req, res) => {
 
 // Deactivate or activate a user account
 exports.changeUserStatus = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
+  const { userId } = req.params; // Assuming userId is passed as a URL parameter
 
   try {
     // Start a transaction
     await query("START TRANSACTION");
 
     // Check if the user exists and get the current activation status
-    const userQuery = "SELECT isActive FROM users WHERE userId = ?";
+    const userQuery = "SELECT status FROM users WHERE userId = ?";
     const userResult = await query(userQuery, [userId]);
 
     if (userResult.length === 0) {
@@ -489,10 +397,10 @@ exports.changeUserStatus = asyncHandler(async (req, res) => {
     }
 
     // Toggle the activation status
-    const currentStatus = userResult[0].isActive;
+    const currentStatus = userResult[0].status;
     const newStatus = !currentStatus;
 
-    const updateUserQuery = "UPDATE users SET isActive = ? WHERE userId = ?";
+    const updateUserQuery = "UPDATE users SET status = ? WHERE userId = ?";
     const updateResult = await query(updateUserQuery, [newStatus, userId]);
 
     if (updateResult.affectedRows === 0) {
@@ -502,7 +410,7 @@ exports.changeUserStatus = asyncHandler(async (req, res) => {
         message: "Failed to update user status",
       });
     }
-    // console.log(updateResult)
+
     // Commit the transaction
     await query("COMMIT");
 
@@ -511,7 +419,6 @@ exports.changeUserStatus = asyncHandler(async (req, res) => {
       message: `User account has been ${
         newStatus ? "activated" : "deactivated"
       }`,
-      accountStatus: newStatus,
     });
   } catch (error) {
     // Rollback the transaction in case of any error
@@ -631,7 +538,6 @@ exports.deleteUser = asyncHandler(async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "User account has been deleted successfully",
-      deletedUser: true,
     });
   } catch (error) {
     // Rollback the transaction in case of any error
