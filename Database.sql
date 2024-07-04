@@ -39,6 +39,9 @@ ALTER TABLE users
 ADD COLUMN isVerified ENUM ('false', 'true') DEFAULT 'false',
 ADD COLUMN lastVerified TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
+ALTER TABLE users
+ALTER COLUMN isActive SET DEFAULT TRUE;
+
 -- Ensure the event scheduler is enabled
 SET GLOBAL event_scheduler = ON;
 

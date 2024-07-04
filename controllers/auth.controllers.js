@@ -180,7 +180,7 @@ exports.createUser = asyncHandler(async (req, res) => {
     // Generate the activation token
     const activationToken = jwt.sign(
       { userId, email, username, phoneNumber, referralLink, password },
-      process.env.ACTIVATION_SECRET,
+      process.env.ACTIVATION_SECRET_KEY,
       {
         expiresIn: "1h",
       }
@@ -238,7 +238,7 @@ exports.verifyUser = asyncHandler(async (req, res) => {
     }
 
     // Verify the token
-    const decoded = jwt.verify(token, process.env.ACTIVATION_SECRET);
+    const decoded = jwt.verify(token, process.env.ACTIVATION_SECRET_KEY);
 
     if (!decoded) {
       return res.status(400).json({
@@ -357,6 +357,14 @@ exports.loginUser = asyncHandler(async (req, res) => {
       });
     }
 
+    // check if user Account is Deactivated
+    if(user.isActive === 0){
+      return res.status(403).json({
+        success: false,
+        message:`Account has been deactivated...Please contact Admin`
+      })
+    }
+
     // Check if password matches
     const isMatch = await bcrypt.compare(password, user.password);
 
@@ -416,6 +424,7 @@ exports.loginUser = asyncHandler(async (req, res) => {
         .json({
           success: true,
           message: "Login successful",
+          token,
           user: {
             userId: user.userId,
             firstName: user.firstName,
